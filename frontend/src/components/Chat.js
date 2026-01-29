@@ -2,9 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import './Chat.css';
 
-// ALB経由でアクセスする場合は相対パスを使用
-// フロントエンドと同じオリジンからAPIにアクセス
-const API_URL = process.env.REACT_APP_API_URL || '';
+// 本番環境（ALB）では相対パスを使用
+// ローカル開発環境でのみ localhost を使用
+const getApiUrl = () => {
+  // window.location.hostname が localhost の場合のみ localhost を使用
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  // それ以外（本番環境）では空文字列（相対パス）
+  return '';
+};
+
+const API_URL = getApiUrl();
 
 function Chat() {
   const [messages, setMessages] = useState([]);

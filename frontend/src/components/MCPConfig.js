@@ -2,8 +2,15 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './MCPConfig.css';
 
-// ALB経由でアクセスする場合は相対パスを使用
-const API_URL = process.env.REACT_APP_API_URL || '';
+// 本番環境（ALB）では相対パスを使用
+const getApiUrl = () => {
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  return '';
+};
+
+const API_URL = getApiUrl();
 
 function MCPConfig() {
   const [configJson, setConfigJson] = useState('');
