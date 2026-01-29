@@ -33,6 +33,14 @@ class DiagramRequest(BaseModel):
 async def root():
     return {"message": "Bedrock UI API is running"}
 
+@app.get("/health")
+async def health_check():
+    """ヘルスチェックエンドポイント"""
+    return {
+        "status": "healthy",
+        "service": "bedrock-ui-backend"
+    }
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """チャット機能のエンドポイント"""
