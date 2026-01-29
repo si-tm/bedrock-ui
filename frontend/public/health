@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Health Check</title>
+</head>
+<body>
+    <script>
+        document.write(JSON.stringify({
+            status: "healthy",
+            service: "bedrock-ui-frontend",
+            timestamp: new Date().toISOString()
+        }));
+    </script>
+</body>
+</html>

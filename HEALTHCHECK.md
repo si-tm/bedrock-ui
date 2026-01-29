@@ -17,7 +17,7 @@
 ```
 
 ### フロントエンド
-- URL: `http://localhost:3000/health.html`
+- URL: `http://localhost:3000/health`
 - レスポンス:
 ```json
 {
@@ -26,6 +26,8 @@
   "timestamp": "2024-01-XX..."
 }
 ```
+
+注: `/health.html` も利用可能ですが、ALBとの互換性のため `/health` を推奨します。
 
 ## Docker Composeヘルスチェック設定
 
@@ -62,6 +64,8 @@ frontend            Up (healthy)
 curl http://localhost:8000/health
 
 # フロントエンド
+curl http://localhost:3000/health
+# または
 curl http://localhost:3000/health.html
 ```
 
@@ -70,11 +74,13 @@ curl http://localhost:3000/health.html
 ### ALB (Application Load Balancer)
 ALBのターゲットグループでヘルスチェックを設定：
 - **パス（バックエンド）**: `/health`
-- **パス（フロントエンド）**: `/health.html`
+- **パス（フロントエンド）**: `/health`
 - **間隔**: 30秒
 - **タイムアウト**: 5秒
 - **正常しきい値**: 2
-- **異常しきい値**: 2
+- **異常しきい値**: 3 (推奨、10は多すぎます)
+
+詳細は `ALB_SETUP.md` を参照してください。
 
 ### ECS
 タスク定義でヘルスチェックコマンドを設定：

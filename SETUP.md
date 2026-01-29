@@ -44,7 +44,7 @@ docker-compose up --build
 各サービスのヘルスチェックエンドポイント：
 
 - バックエンド: http://localhost:8000/health
-- フロントエンド: http://localhost:3000/health.html
+- フロントエンド: http://localhost:3000/health
 
 Docker Composeは自動的にヘルスチェックを実行します：
 
@@ -57,6 +57,8 @@ docker-compose ps
 - バックエンド: 30秒間隔、10秒タイムアウト、3回リトライ、起動40秒後から開始
 - フロントエンド: 30秒間隔、10秒タイムアウト、3回リトライ、起動60秒後から開始
 - フロントエンドはバックエンドが健全な状態になってから起動
+
+詳細は `HEALTHCHECK.md` を参照してください。
 
 ## 機能
 
