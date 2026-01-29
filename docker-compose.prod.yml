@@ -25,8 +25,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://backend:8000
+    # ALB環境では環境変数を設定せず、相対パスでAPIにアクセス
+    # environment:
+    #   - REACT_APP_API_URL=
     depends_on:
       backend:
         condition: service_healthy

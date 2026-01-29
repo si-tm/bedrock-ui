@@ -3,7 +3,8 @@ import axios from 'axios';
 import mermaid from 'mermaid';
 import './DiagramGenerator.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// ALB経由でアクセスする場合は相対パスを使用
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 mermaid.initialize({ startOnLoad: true, theme: 'default' });
 

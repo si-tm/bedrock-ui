@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import './Chat.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// ALB経由でアクセスする場合は相対パスを使用
+// フロントエンドと同じオリジンからAPIにアクセス
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 function Chat() {
   const [messages, setMessages] = useState([]);
