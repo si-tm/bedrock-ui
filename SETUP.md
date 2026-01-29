@@ -6,26 +6,44 @@ AWS Bedrockを使用したチャット・構成図生成・MCP設定管理アプ
 
 - Docker & Docker Compose
 - AWS アカウント（Bedrock へのアクセス権限）
-- AWS IAM ユーザー（bedrock:InvokeModel 権限）
+- **EC2/ECS環境**: IAMロール（bedrock:InvokeModel 権限）
+- **ローカル開発**: AWS CLI設定またはAWSアクセスキー
 
 ## セットアップ手順
 
 ### 1. 環境変数の設定
 
-`.env.example` をコピーして `.env` ファイルを作成：
+#### ローカル開発環境
+
+**方法1: AWS CLI設定を使用（推奨）**
 
 ```bash
+# AWS CLIで認証情報を設定
+aws configure
+
+# .envファイルにリージョンのみ設定
+cat > .env << EOF
+AWS_REGION=us-east-1
+EOF
+```
+
+**方法2: 環境変数を使用**
+
+```bash
+# .env.exampleをコピー
 cp .env.example .env
-```
 
-`.env` ファイルを編集して、AWS認証情報を設定：
-
-```
+# .envファイルを編集して、AWS認証情報を設定：
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_access_key_here
 AWS_SECRET_ACCESS_KEY=your_secret_key_here
 REACT_APP_API_URL=http://localhost:8000
 ```
+
+#### EC2/ECS環境
+
+IAMロールから自動的に認証情報を取得します。
+詳細は `DEPLOY.md` を参照してください。
 
 ### 2. Docker Compose でアプリケーションを起動
 
@@ -79,18 +97,22 @@ docker-compose ps
 
 ## AWS EC2/ECS へのデプロイ
 
+**重要**: EC2/ECSでは、IAMロールから自動的にAWS認証情報を取得します。
+環境変数にアクセスキーを設定する必要はありません。
+
+詳細な手順は `DEPLOY.md` を参照してください。
+
 ### EC2 へのデプロイ
 
-1. EC2 インスタンスにDocker & Docker Composeをインストール
-2. IAMロールに bedrock:InvokeModel 権限を付与
+1. EC2インスタンスにIAMロールをアタッチ（bedrock:InvokeModel 権限）
+2. Docker & Docker Composeをインストール
 3. リポジトリをクローン
-4. `.env` ファイルを設定
-5. `docker-compose up -d` で起動
+4. 本番環境用設定で起動: `docker-compose -f docker-compose.prod.yml up -d`
 
 ### ECS へのデプロイ
 
 1. ECRにイメージをプッシュ
-2. タスク定義を作成（環境変数とIAMロールを設定）
+2. ECSタスク定義を作成（タスクロールにbedrock:InvokeModel権限を付与）
 3. ECSサービスを作成
 4. ALBでルーティングを設定
 
