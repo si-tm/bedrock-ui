@@ -93,7 +93,7 @@ async def chat(request: ChatRequest):
         
         response = bedrock_runtime.invoke_model(
             # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0',
             body=body
         )
         
@@ -166,7 +166,7 @@ Mermaid記法のみを返してください（コードブロックなし）。
         
         response = bedrock_runtime.invoke_model(
             # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0',
             body=body
         )
         
