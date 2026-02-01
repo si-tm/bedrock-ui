@@ -88,8 +88,8 @@ fi
 # 3. Dockerコンテナの状態確認
 echo ""
 echo "3. Dockerコンテナの状態:"
-if docker-compose ps 2>/dev/null | grep -q "backend"; then
-    BACKEND_STATUS=$(docker-compose ps | grep backend | awk '{print $4}')
+if docker compose ps 2>/dev/null | grep -q "backend"; then
+    BACKEND_STATUS=$(docker compose ps | grep backend | awk '{print $4}')
     if echo "$BACKEND_STATUS" | grep -q "Up"; then
         echo -e "   ${GREEN}✓${NC} バックエンドコンテナ: 起動中"
     else
@@ -97,7 +97,7 @@ if docker-compose ps 2>/dev/null | grep -q "backend"; then
     fi
 else
     echo -e "   ${RED}✗${NC} バックエンドコンテナが見つかりません"
-    echo "      docker-compose up -d を実行してください"
+    echo "      docker compose up -d を実行してください"
 fi
 
 # 4. バックエンドヘルスチェック
@@ -109,7 +109,7 @@ if [ $? -eq 0 ]; then
     echo "      $HEALTH_RESPONSE"
 else
     echo -e "   ${RED}✗${NC} バックエンドが応答しません"
-    echo "      docker-compose logs backend で確認してください"
+    echo "      docker compose logs backend で確認してください"
 fi
 
 # 5. Bedrockクライアント初期化確認
@@ -125,13 +125,13 @@ if [ "$BEDROCK_STATUS" = "initialized" ]; then
 else
     echo -e "   ${RED}✗${NC} Bedrockクライアント: 初期化失敗"
     echo -e "   ${YELLOW}⚠${NC} 使用リージョン: $REGION"
-    echo "      ログを確認: docker-compose logs backend | grep Bedrock"
+    echo "      ログを確認: docker compose logs backend | grep Bedrock"
 fi
 
 # 6. 最新のエラーログ確認
 echo ""
 echo "6. 最新のエラーログ:"
-ERRORS=$(docker-compose logs backend --tail=20 2>/dev/null | grep -E "(ERROR|Exception|✗)" | tail -5)
+ERRORS=$(docker compose logs backend --tail=20 2>/dev/null | grep -E "(ERROR|Exception|✗)" | tail -5)
 if [ -z "$ERRORS" ]; then
     echo -e "   ${GREEN}✓${NC} エラーログはありません"
 else
@@ -144,7 +144,7 @@ fi
 # 7. Bedrock初期化ログ確認
 echo ""
 echo "7. Bedrock初期化ログ:"
-INIT_LOGS=$(docker-compose logs backend 2>/dev/null | grep -E "(Bedrock|bedrock)" | tail -3)
+INIT_LOGS=$(docker compose logs backend 2>/dev/null | grep -E "(Bedrock|bedrock)" | tail -3)
 if echo "$INIT_LOGS" | grep -q "✓"; then
     echo -e "   ${GREEN}✓${NC} 初期化成功"
     echo "$INIT_LOGS" | while IFS= read -r line; do
@@ -165,7 +165,6 @@ fi
 echo ""
 echo "8. AWS CLI経由でBedrockアクセステスト:"
 if command -v aws &> /dev/null; then
-    # 正しいJSON形式でbodyを作成
     TEST_BODY='{"anthropic_version":"bedrock-2023-05-31","max_tokens":50,"messages":[{"role":"user","content":"Hi"}]}'
     
     TEST_RESULT=$(aws bedrock-runtime invoke-model \
@@ -203,14 +202,13 @@ echo "=========================================="
 echo "診断結果サマリー"
 echo "=========================================="
 
-# 問題がある項目をカウント
 ISSUES=0
 
 [ "$AWS_REGION" != "ap-northeast-1" ] && [ -f .env ] && ((ISSUES++)) && echo -e "${RED}✗${NC} .envファイルのAWS_REGIONをap-northeast-1に設定してください"
 [ ! -f .env ] && ((ISSUES++)) && echo -e "${RED}✗${NC} .envファイルを作成してください（deploy-ec2.shを実行）"
 [ -z "$ROLE" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} EC2にIAMロールをアタッチしてください"
 [ "$BEDROCK_STATUS" != "initialized" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} Bedrockクライアントの初期化に失敗しています"
-[ ! -z "$ERRORS" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} エラーログを確認してください: docker-compose logs backend"
+[ ! -z "$ERRORS" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} エラーログを確認してください: docker compose logs backend"
 
 if [ $ISSUES -eq 0 ]; then
     echo -e "${GREEN}✓${NC} すべての診断項目をパスしました！"
@@ -223,13 +221,13 @@ else
     echo "1. EC2_500_ERROR_FIX.md を参照"
     echo "2. deploy-ec2.sh を実行して環境をセットアップ"
     echo "3. 問題を修正後、コンテナを再起動:"
-    echo "   docker-compose down"
-    echo "   docker-compose up -d"
+    echo "   docker compose down"
+    echo "   docker compose up -d"
     echo "4. このスクリプトを再実行して確認"
 fi
 
 echo ""
 echo "詳細なログを確認:"
-echo "  docker-compose logs backend --tail=50"
-echo "  docker-compose logs frontend --tail=50"
+echo "  docker compose logs backend --tail=50"
+echo "  docker compose logs frontend --tail=50"
 echo ""
