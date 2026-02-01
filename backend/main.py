@@ -5,6 +5,7 @@ import boto3
 import json
 import os
 import logging
+import traceback
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +24,7 @@ app.add_middleware(
 
 # Bedrock クライアントの初期化
 try:
-    aws_region = os.getenv('AWS_REGION', 'us-east-1')
+    aws_region = os.getenv('AWS_REGION', 'ap-northeast-1')
     logger.info(f"Initializing Bedrock client in region: {aws_region}")
     
     bedrock_runtime = boto3.client(
@@ -46,7 +47,7 @@ class DiagramRequest(BaseModel):
 async def root():
     return {
         "message": "Bedrock UI API is running",
-        "region": os.getenv('AWS_REGION', 'us-east-1'),
+        "region": os.getenv('AWS_REGION', 'ap-northeast-1'),
         "bedrock_client": "initialized" if bedrock_runtime else "not initialized"
     }
 
@@ -56,7 +57,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "bedrock-ui-backend",
-        "region": os.getenv('AWS_REGION', 'us-east-1')
+        "region": os.getenv('AWS_REGION', 'ap-northeast-1')
     }
 
 @app.post("/api/chat")
@@ -86,6 +87,10 @@ async def chat(request: ChatRequest):
             "temperature": 0.7
         })
         
+        # invoke_modelを呼び出し
+        logger.info(f"Model ID: anthropic.claude-3-sonnet-20240229-v1:0")
+        logger.info(f"Region: {os.getenv('AWS_REGION', 'ap-northeast-1')}")
+        
         response = bedrock_runtime.invoke_model(
             modelId='anthropic.claude-3-sonnet-20240229-v1:0',
             body=body
@@ -103,13 +108,17 @@ async def chat(request: ChatRequest):
             ]
         }
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {type(e).__name__}: {str(e)}")
+        # 完全なエラーメッセージをログに出力
+        logger.error(f"Full error: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         
         # 詳細なエラーメッセージ
         error_detail = {
             "error_type": type(e).__name__,
             "error_message": str(e),
-            "region": os.getenv('AWS_REGION', 'us-east-1')
+            "region": os.getenv('AWS_REGION', 'ap-northeast-1'),
+            "traceback": traceback.format_exc()
         }
         
         # よくあるエラーの場合は説明を追加
@@ -118,7 +127,8 @@ async def chat(request: ChatRequest):
         elif "ResourceNotFoundException" in str(e):
             error_detail["hint"] = "モデルが見つかりません。Bedrock Model Accessを確認してください"
         elif "ValidationException" in str(e):
-            error_detail["hint"] = "リクエストの形式が正しくありません"
+            error_detail["hint"] = "ValidationException: クロスリージョンインファレンスまたはモデルID の問題です"
+            error_detail["full_error"] = str(e)
         elif "ThrottlingException" in str(e):
             error_detail["hint"] = "リクエスト制限に達しました。しばらく待ってから再試行してください"
         
@@ -166,11 +176,12 @@ Mermaid記法のみを返してください（コードブロックなし）。
         return {"diagram": diagram_code}
     except Exception as e:
         logger.error(f"Error in diagram endpoint: {type(e).__name__}: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         
         error_detail = {
             "error_type": type(e).__name__,
             "error_message": str(e),
-            "region": os.getenv('AWS_REGION', 'us-east-1')
+            "region": os.getenv('AWS_REGION', 'ap-northeast-1')
         }
         
         raise HTTPException(status_code=500, detail=error_detail)
