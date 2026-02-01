@@ -92,7 +92,8 @@ async def chat(request: ChatRequest):
         logger.info(f"Region: {os.getenv('AWS_REGION', 'ap-northeast-1')}")
         
         response = bedrock_runtime.invoke_model(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
             body=body
         )
         
@@ -164,7 +165,8 @@ Mermaid記法のみを返してください（コードブロックなし）。
         })
         
         response = bedrock_runtime.invoke_model(
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
+            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
             body=body
         )
         
