@@ -87,13 +87,13 @@ async def chat(request: ChatRequest):
             "temperature": 0.7
         })
         
-        # invoke_modelを呼び出し
-        logger.info(f"Model ID: anthropic.claude-3-sonnet-20240229-v1:0")
+        # Inference Profile ARNを使用（東京リージョン用）
+        model_arn = 'arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+        logger.info(f"Model ARN: {model_arn}")
         logger.info(f"Region: {os.getenv('AWS_REGION', 'ap-northeast-1')}")
         
         response = bedrock_runtime.invoke_model(
-            # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0',
+            modelId=model_arn,
             body=body
         )
         
@@ -128,7 +128,7 @@ async def chat(request: ChatRequest):
         elif "ResourceNotFoundException" in str(e):
             error_detail["hint"] = "モデルが見つかりません。Bedrock Model Accessを確認してください"
         elif "ValidationException" in str(e):
-            error_detail["hint"] = "ValidationException: クロスリージョンインファレンスまたはモデルID の問題です"
+            error_detail["hint"] = "ValidationException: Inference Profileまたはモデルアクセスの問題です"
             error_detail["full_error"] = str(e)
         elif "ThrottlingException" in str(e):
             error_detail["hint"] = "リクエスト制限に達しました。しばらく待ってから再試行してください"
@@ -164,9 +164,11 @@ Mermaid記法のみを返してください（コードブロックなし）。
             "temperature": 0.5
         })
         
+        # Inference Profile ARNを使用
+        model_arn = 'arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+        
         response = bedrock_runtime.invoke_model(
-            # modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            modelId='arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0',
+            modelId=model_arn,
             body=body
         )
         
@@ -204,3 +206,4 @@ async def update_mcp_config(config: dict):
     except Exception as e:
         logger.error(f"Error updating MCP config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
