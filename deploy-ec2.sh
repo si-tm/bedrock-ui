@@ -1,11 +1,35 @@
 #!/bin/bash
 
-# EC2上でのデプロイスクリプト
+# EC2上でのデプロイスクリプト (IMDSv2対応)
 # このスクリプトは、EC2インスタンスでdocker-composeを使用してアプリケーションをデプロイします
 
 echo "=========================================="
 echo "Bedrock UI - EC2デプロイスクリプト"
 echo "=========================================="
+
+# IMDSv2用のトークン取得関数
+get_imds_token() {
+    TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
+        -s --connect-timeout 2 2>/dev/null)
+    echo "$TOKEN"
+}
+
+# IMDSv2対応のメタデータ取得関数
+get_metadata() {
+    local path=$1
+    local token=$(get_imds_token)
+    
+    if [ -z "$token" ]; then
+        # IMDSv2が失敗した場合、IMDSv1で試行
+        curl -s --connect-timeout 2 "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null
+    else
+        # IMDSv2でアクセス
+        curl -s --connect-timeout 2 \
+            -H "X-aws-ec2-metadata-token: $token" \
+            "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null
+    fi
+}
 
 # .envファイルが存在しない場合は作成
 if [ ! -f .env ]; then
@@ -31,12 +55,28 @@ echo "✓ 環境変数の確認..."
 source .env 2>/dev/null
 echo "  AWS_REGION: ${AWS_REGION:-ap-northeast-1}"
 
-# IAMロールの確認
+# IAMロールの確認 (IMDSv2対応)
 echo ""
 echo "✓ IAMロールの確認..."
-if curl -s -f --connect-timeout 2 http://169.254.169.254/latest/meta-data/iam/security-credentials/ > /dev/null 2>&1; then
-    ROLE_NAME=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+ROLE_NAME=$(get_metadata "iam/security-credentials/")
+
+if [ -n "$ROLE_NAME" ]; then
     echo "  IAMロール: $ROLE_NAME ✓"
+    
+    # 認証情報の確認
+    TOKEN=$(get_imds_token)
+    if [ -z "$TOKEN" ]; then
+        CREDS=$(curl -s "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME" 2>/dev/null)
+    else
+        CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+            "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME" 2>/dev/null)
+    fi
+    
+    if echo "$CREDS" | grep -q "AccessKeyId"; then
+        echo "  認証情報: 取得成功 ✓"
+    else
+        echo "  ⚠️  警告: 認証情報の取得に失敗しました"
+    fi
 else
     echo "  ⚠️  警告: IAMロールがアタッチされていません"
     echo "  IAMロールがないと、AWS Bedrockにアクセスできません"
@@ -126,11 +166,13 @@ echo "デプロイ完了"
 echo "=========================================="
 echo ""
 echo "次のステップ:"
-echo "1. ALB経由でアクセス: http://your-alb-dns-name"
-echo "2. ログを確認: docker-compose logs -f backend"
-echo "3. チャット機能をテスト"
+echo "1. 診断スクリプトを実行: ./diagnose.sh"
+echo "2. ALB経由でアクセス: http://your-alb-dns-name"
+echo "3. ログを確認: docker-compose logs -f backend"
+echo "4. チャット機能をテスト"
 echo ""
 echo "トラブルシューティング:"
+echo "- 詳細診断: ./diagnose.sh"
 echo "- ログ確認: docker-compose logs backend"
 echo "- コンテナ再起動: docker-compose restart backend"
 echo "- 完全再デプロイ: ./deploy-ec2.sh"

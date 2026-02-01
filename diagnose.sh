@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Bedrock UI 診断スクリプト
+# Bedrock UI 診断スクリプト (IMDSv2対応版)
 # EC2上でこのスクリプトを実行して、問題を診断します
 
 echo "=========================================="
-echo "Bedrock UI 診断スクリプト"
+echo "Bedrock UI 診断スクリプト (IMDSv2対応)"
 echo "=========================================="
 echo ""
 
@@ -13,6 +13,30 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# IMDSv2用のトークン取得関数
+get_imds_token() {
+    TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" \
+        -s --connect-timeout 2 2>/dev/null)
+    echo "$TOKEN"
+}
+
+# IMDSv2対応のメタデータ取得関数
+get_metadata() {
+    local path=$1
+    local token=$(get_imds_token)
+    
+    if [ -z "$token" ]; then
+        # IMDSv2が失敗した場合、IMDSv1で試行
+        curl -s --connect-timeout 2 "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null
+    else
+        # IMDSv2でアクセス
+        curl -s --connect-timeout 2 \
+            -H "X-aws-ec2-metadata-token: $token" \
+            "http://169.254.169.254/latest/meta-data/$path" 2>/dev/null
+    fi
+}
 
 # 1. AWS_REGION確認
 echo "1. AWS_REGION設定の確認:"
@@ -28,25 +52,32 @@ else
 fi
 
 # docker-compose.ymlのデフォルト値も確認
-DEFAULT_REGION=$(grep "AWS_REGION=" docker-compose.yml | head -1 | grep -o ":-[^}]*" | cut -d'-' -f2 | cut -d'}' -f1)
+DEFAULT_REGION=$(grep "AWS_REGION=" docker-compose.yml | head -1 | grep -o "ap-northeast-1" | head -1)
 if [ "$DEFAULT_REGION" = "ap-northeast-1" ]; then
     echo -e "   ${GREEN}✓${NC} docker-compose.yml のデフォルト: $DEFAULT_REGION"
 else
-    echo -e "   ${RED}✗${NC} docker-compose.yml のデフォルト: ${DEFAULT_REGION:-未設定} (ap-northeast-1 である必要があります)"
+    echo -e "   ${RED}✗${NC} docker-compose.yml のデフォルト値の取得に失敗"
 fi
 
-# 2. IAMロール確認
+# 2. IAMロール確認 (IMDSv2対応)
 echo ""
 echo "2. IAMロールの確認:"
-ROLE=$(curl -s --connect-timeout 2 http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+ROLE=$(get_metadata "iam/security-credentials/")
 if [ -z "$ROLE" ]; then
     echo -e "   ${RED}✗${NC} IAMロールがアタッチされていません"
     echo "      EC2コンソールでIAMロールをアタッチしてください"
 else
     echo -e "   ${GREEN}✓${NC} IAMロール: $ROLE"
     
-    # ロールの認証情報を確認
-    CREDS=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE)
+    # ロールの認証情報を確認 (IMDSv2対応)
+    TOKEN=$(get_imds_token)
+    if [ -z "$TOKEN" ]; then
+        CREDS=$(curl -s "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE" 2>/dev/null)
+    else
+        CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+            "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE" 2>/dev/null)
+    fi
+    
     if echo "$CREDS" | grep -q "AccessKeyId"; then
         echo -e "   ${GREEN}✓${NC} 認証情報を取得できました"
     else
@@ -94,6 +125,7 @@ if [ "$BEDROCK_STATUS" = "initialized" ]; then
 else
     echo -e "   ${RED}✗${NC} Bedrockクライアント: 初期化失敗"
     echo -e "   ${YELLOW}⚠${NC} 使用リージョン: $REGION"
+    echo "      ログを確認: docker-compose logs backend | grep Bedrock"
 fi
 
 # 6. 最新のエラーログ確認
@@ -120,18 +152,25 @@ if echo "$INIT_LOGS" | grep -q "✓"; then
     done
 else
     echo -e "   ${RED}✗${NC} 初期化に問題がある可能性があります"
-    echo "$INIT_LOGS" | while IFS= read -r line; do
-        echo "      $line"
-    done
+    if [ -z "$INIT_LOGS" ]; then
+        echo "      ログが見つかりません（コンテナが起動していない可能性）"
+    else
+        echo "$INIT_LOGS" | while IFS= read -r line; do
+            echo "      $line"
+        done
+    fi
 fi
 
 # 8. AWS CLI でBedrockアクセステスト
 echo ""
 echo "8. AWS CLI経由でBedrockアクセステスト:"
 if command -v aws &> /dev/null; then
+    # 正しいJSON形式でbodyを作成
+    TEST_BODY='{"anthropic_version":"bedrock-2023-05-31","max_tokens":50,"messages":[{"role":"user","content":"Hi"}]}'
+    
     TEST_RESULT=$(aws bedrock-runtime invoke-model \
         --model-id anthropic.claude-3-sonnet-20240229-v1:0 \
-        --body '{"anthropic_version":"bedrock-2023-05-31","max_tokens":50,"messages":[{"role":"user","content":"Hi"}]}' \
+        --body "$TEST_BODY" \
         --region ap-northeast-1 \
         /tmp/bedrock-test.json 2>&1)
     
@@ -147,7 +186,10 @@ if command -v aws &> /dev/null; then
         elif echo "$TEST_RESULT" | grep -q "ValidationException"; then
             echo "      原因: モデルIDまたはリージョンに問題があります"
         else
-            echo "      エラー: $TEST_RESULT"
+            echo "      エラーの詳細:"
+            echo "$TEST_RESULT" | head -3 | while IFS= read -r line; do
+                echo "        $line"
+            done
         fi
     fi
     rm -f /tmp/bedrock-test.json
@@ -164,7 +206,8 @@ echo "=========================================="
 # 問題がある項目をカウント
 ISSUES=0
 
-[ "$AWS_REGION" != "ap-northeast-1" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} AWS_REGIONをap-northeast-1に設定してください"
+[ "$AWS_REGION" != "ap-northeast-1" ] && [ -f .env ] && ((ISSUES++)) && echo -e "${RED}✗${NC} .envファイルのAWS_REGIONをap-northeast-1に設定してください"
+[ ! -f .env ] && ((ISSUES++)) && echo -e "${RED}✗${NC} .envファイルを作成してください（deploy-ec2.shを実行）"
 [ -z "$ROLE" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} EC2にIAMロールをアタッチしてください"
 [ "$BEDROCK_STATUS" != "initialized" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} Bedrockクライアントの初期化に失敗しています"
 [ ! -z "$ERRORS" ] && ((ISSUES++)) && echo -e "${RED}✗${NC} エラーログを確認してください: docker-compose logs backend"
@@ -178,10 +221,11 @@ else
     echo ""
     echo "推奨される対処法:"
     echo "1. EC2_500_ERROR_FIX.md を参照"
-    echo "2. 問題を修正後、以下を実行:"
+    echo "2. deploy-ec2.sh を実行して環境をセットアップ"
+    echo "3. 問題を修正後、コンテナを再起動:"
     echo "   docker-compose down"
     echo "   docker-compose up -d"
-    echo "3. このスクリプトを再実行して確認"
+    echo "4. このスクリプトを再実行して確認"
 fi
 
 echo ""
